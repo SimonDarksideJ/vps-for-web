@@ -1,328 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>THREE + Immersal VPS for Web</title>
-<link rel="stylesheet" href="css/styles.css">
-<meta id="theme-color" name="theme-color" content="#37474F">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js"></script>
-<script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/PLYLoader.js"></script>
-<script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/GLTFLoader.js"></script>
-<script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/RGBELoader.js"></script>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>THREE + Immersal VPS for Web</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <meta id="theme-color" name="theme-color" content="#37474F">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/PLYLoader.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/mrdoob/three.js@r123/examples/js/loaders/RGBELoader.js"></script>
 </head>
 
 <body>
-<div id="container"></div>
-<div id="uicontainer">
-  <div class="form-group">
-    <input type="radio" id="mode1" name="mode" value="ondevice" checked onclick="hide('serverlocui', this); show('devicelocui', this)"/>
-    <label for="mode1">On-device</label>
-    <input type="radio" id="mode2" name="mode" value="onserver" onclick="hide('devicelocui', this); show('serverlocui', this)"/>
-    <label for="mode2">On-server</label>
+  <div id="container"></div>
+  <div id="uicontainer">
+    <div class="form-group">
+      <input type="radio" id="mode1" name="mode" value="ondevice" checked
+        onclick="hide('serverlocui', this); show('devicelocui', this)" />
+      <label for="mode1">On-device</label>
+      <input type="radio" id="mode2" name="mode" value="onserver"
+        onclick="hide('devicelocui', this); show('serverlocui', this)" />
+      <label for="mode2">On-server</label>
+    </div>
+    <div id="devicelocui" class="form-group">
+      <input type="checkbox" id="contloc" checked onclick="toggleLoc(this)" />
+      <label for="contloc">Continuous localization</label>
+      <button id="locButton" class="button">Localize on device</button>
+    </div>
+    <div id="serverlocui" class="form-group">
+      <button id="locServerButton" class="button">Localize on server</button>
+    </div>
+    <div id="latlon">lat: <span id="latitude">0</span>, lon: <span id="longitude">0</span>, alt: <span
+        id="altitude">0</span></div>
   </div>
-  <div id="devicelocui" class="form-group">
-    <input type="checkbox" id="contloc" checked onclick="toggleLoc(this)"/>
-    <label for="contloc">Continuous localization</label>
-    <button id="locButton" class="button">Localize on device</button>
-  </div>
-  <div id="serverlocui" class="form-group">
-    <button id="locServerButton" class="button">Localize on server</button>
-  </div>
-  <div id="latlon">lat: <span id="latitude">0</span>, lon: <span id="longitude">0</span>, alt: <span id="altitude">0</span></div>
-</div>
-<button id="permButton" class="button">Start AR</button>
-<script type="module">
-  import { immersalParams } from './js/imConfig.js';
-  import { Immersal, createOrientationSensor } from './js/immersal.js';
+  <button id="permButton" class="button">Start AR</button>
+  <script type="module">
+    import { immersalParams } from './js/imConfig.js';
+    import { Immersal, createOrientationSensor } from './js/immersal.js';
 
-  const USE_FILTERING = true;
+    const USE_FILTERING = true;
 
-  const container = document.getElementById("container");
-  const uiContainer = document.getElementById("uicontainer");
-  const permButton = document.getElementById("permButton");
-  const locButton = document.getElementById("locButton");
-  const locServerButton = document.getElementById("locServerButton");
-  const lat = document.getElementById("latitude");
-  const lon = document.getElementById("longitude");
-  const alt = document.getElementById("altitude");
+    const container = document.getElementById("container");
+    const uiContainer = document.getElementById("uicontainer");
+    const permButton = document.getElementById("permButton");
+    const locButton = document.getElementById("locButton");
+    const locServerButton = document.getElementById("locServerButton");
+    const lat = document.getElementById("latitude");
+    const lon = document.getElementById("longitude");
+    const alt = document.getElementById("altitude");
 
-  const P = new THREE.Vector3();
-  const Q = new THREE.Quaternion();
-  const QG = new THREE.Quaternion();
-  
-  let camera, scene, renderer, clock, pcgeo;
-  let logo, mixer;
-  let immersal;
-  let mapHandle = -1;
-  let pointCloud = null;
-  let plyLoaded = false;
-  let contentLoaded = false;
-  let prevTime = 0;
+    const P = new THREE.Vector3();
+    const Q = new THREE.Quaternion();
+    const QG = new THREE.Quaternion();
 
-  const init = async () => {
-    const mapId = immersalParams.mapIds[0];
+    let camera, scene, renderer, clock, pcgeo;
+    let logo, mixer;
+    let immersal;
+    let mapHandle = -1;
+    let pointCloud = null;
+    let plyLoaded = false;
+    let contentLoaded = false;
+    let prevTime = 0;
 
-    immersal = await Immersal.Initialize(container, immersalParams);
-    mapHandle = await immersal.loadMap(mapId);
+    //New XR
+    let controller;
+    let reticle;
+    let hitTestSource = null;
+    let hitTestSourceRequested = false;
 
-    //await immersal.freeMap(mapHandle);
+    const init = async () => {
+      const mapId = immersalParams.mapIds[0];
 
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 10000);
-    scene = new THREE.Scene();
+      immersal = await Immersal.Initialize(container, immersalParams);
+      mapHandle = await immersal.loadMap(mapId);
 
-    // renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1;
+      //await immersal.freeMap(mapHandle);
 
-    resize();
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.001, 10000);
+      scene = new THREE.Scene();
 
-    container.appendChild(renderer.domElement);
+      // renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1;
+      renderer.xr.enabled = true;
 
-    immersal.addEventListener('resize', resize);
+      resize();
 
-    // content
-    loadPLY(mapId);
-    loadContent();
+      container.appendChild(renderer.domElement);
 
-    uiContainer.style.display = "block";
+      immersal.addEventListener('resize', resize);
 
-    // clock
-    clock = new THREE.Clock();
+      // content
+      loadPLY(mapId);
+      loadContent();
 
-    animate();
-  }
+      uiContainer.style.display = "block";
 
-  permButton.addEventListener("click", function(e) {
-    createOrientationSensor().then(() => {
-      permButton.style.visibility = "hidden";
-      init();
+      const geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 32).translate(0, 0.1, 0);
+
+      // clock
+      clock = new THREE.Clock();
+
+      function onSelect() {
+
+        if (reticle.visible) {
+
+          const material = new THREE.MeshPhongMaterial({ color: 0xffffff * Math.random() });
+          const mesh = new THREE.Mesh(geometry, material);
+          reticle.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+          mesh.scale.y = Math.random() * 2 + 1;
+          scene.add(mesh);
+        }
+      }
+
+      controller = renderer.xr.getController(0);
+      controller.addEventListener('select', onSelect);
+      scene.add(controller);
+
+      reticle = new THREE.Mesh(
+        new THREE.RingGeometry(0.15, 0.2, 32).rotateX(- Math.PI / 2),
+        new THREE.MeshBasicMaterial()
+      );
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
+      scene.add(reticle);
+
+      animate();
+    }
+
+    permButton.addEventListener("click", function (e) {
+      createOrientationSensor().then(() => {
+        permButton.style.visibility = "hidden";
+        init();
+      });
     });
-  });
 
-  locButton.addEventListener("click", function(e) {
-    if (immersal) {
-      immersal.localizeDeviceAsync()
-      .then(result => {
-        console.log(`[IMMERSAL] On-device localization result:`, result);
-      })
-      .catch(e => {
-        console.log(e);
-      });
-    }
-  });
+    locButton.addEventListener("click", function (e) {
+      if (immersal) {
+        immersal.localizeDeviceAsync()
+          .then(result => {
+            console.log(`[IMMERSAL] On-device localization result:`, result);
+          })
+          .catch(e => {
+            console.log(e);
+          });
+      }
+    });
 
-  locServerButton.addEventListener("click", function(e) {
-    if (immersal) {
-      immersal.localizeServerAsync()
-      .then(result => {
-        console.log(`[IMMERSAL] On-server localization result:`, result);
-      })
-      .catch(e => {
-        console.log(e);
-      });
-    }
-  });
+    locServerButton.addEventListener("click", function (e) {
+      if (immersal) {
+        immersal.localizeServerAsync()
+          .then(result => {
+            console.log(`[IMMERSAL] On-server localization result:`, result);
+          })
+          .catch(e => {
+            console.log(e);
+          });
+      }
+    });
 
-  const resize = (e) => {
-    if (!immersal.camera) return;
-    const w = immersal.camera.el.width;
-    const h = immersal.camera.el.height;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  }
-
-  const animate = () => {
-    renderer.setAnimationLoop(render);
-  }
-
-  const render = (time) => {
-    const timestamp = performance.now();
-    const dt = timestamp - prevTime;
-    prevTime = timestamp;
-
-    if (mapHandle >= 0 && immersal.continuousLocalization) {
-      immersal.localizeDevice(timestamp);
-    }
-
-    if (immersal.localization.counter > 1) {
-      camera.fov = immersal.getVFov();
+    const resize = (e) => {
+      if (!immersal.camera) return;
+      const w = immersal.camera.el.width;
+      const h = immersal.camera.el.height;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
 
-      const {position, rotation, elapsedTime, wgs84} = immersal.localizeInfo;
+    const animate = () => {
+      renderer.setAnimationLoop(render);
+    }
 
-      if (immersal.continuousLocalization) {
-        const {position, rotation} = immersal.getEstimatedPose(timestamp);
+    const render = (time, frame) => {
+      const timestamp = performance.now();
+      const dt = timestamp - prevTime;
+      prevTime = timestamp;
 
-        P.set(position[0], position[1], position[2]);
-        Q.set(rotation[0], rotation[1], rotation[2], rotation[3]);
-        QG.set(immersal.gyroData.x, immersal.gyroData.y, immersal.gyroData.z, immersal.gyroData.w);
-        Q.multiply(QG);
+      if (mapHandle >= 0 && immersal.continuousLocalization) {
+        immersal.localizeDevice(timestamp);
+      }
 
-        if (USE_FILTERING) {
-          let step = 0.025 * dt;
-          if (step > 1.0)
-            step = 1.0;
+      if (immersal.localization.counter > 1) {
+        camera.fov = immersal.getVFov();
+        camera.updateProjectionMatrix();
 
-          camera.position.lerp(P, step);
-          camera.quaternion.set(Q.x, Q.y, Q.z, Q.w);
+        const { position, rotation, elapsedTime, wgs84 } = immersal.localizeInfo;
+
+        if (immersal.continuousLocalization) {
+          const { position, rotation } = immersal.getEstimatedPose(timestamp);
+
+          P.set(position[0], position[1], position[2]);
+          Q.set(rotation[0], rotation[1], rotation[2], rotation[3]);
+          QG.set(immersal.gyroData.x, immersal.gyroData.y, immersal.gyroData.z, immersal.gyroData.w);
+          Q.multiply(QG);
+
+          if (USE_FILTERING) {
+            let step = 0.025 * dt;
+            if (step > 1.0)
+              step = 1.0;
+
+            camera.position.lerp(P, step);
+            camera.quaternion.set(Q.x, Q.y, Q.z, Q.w);
+          } else {
+            camera.position.set(P.x, P.y, P.z);
+            camera.quaternion.set(Q.x, Q.y, Q.z, Q.w);
+          }
         } else {
+          P.set(position.x, position.y, position.z);
+          Q.set(rotation.x, rotation.y, rotation.z, rotation.w);
+          QG.set(immersal.gyroData.x, immersal.gyroData.y, immersal.gyroData.z, immersal.gyroData.w);
+          Q.multiply(QG);
           camera.position.set(P.x, P.y, P.z);
           camera.quaternion.set(Q.x, Q.y, Q.z, Q.w);
         }
-      } else {
-        P.set(position.x, position.y, position.z);
-        Q.set(rotation.x, rotation.y, rotation.z, rotation.w);
-        QG.set(immersal.gyroData.x, immersal.gyroData.y, immersal.gyroData.z, immersal.gyroData.w);
-        Q.multiply(QG);
-        camera.position.set(P.x, P.y, P.z);
-        camera.quaternion.set(Q.x, Q.y, Q.z, Q.w);
+
+        lat.innerHTML = wgs84.latitude.toFixed(5);
+        lon.innerHTML = wgs84.longitude.toFixed(5);
+        alt.innerHTML = wgs84.altitude.toFixed(5);
+
+        //console.log(`latitude: ${wgs84.latitude}, longitude: ${wgs84.longitude}, altitude: ${wgs84.altitude}`);
       }
 
-      lat.innerHTML = wgs84.latitude.toFixed(5);
-      lon.innerHTML = wgs84.longitude.toFixed(5);
-      alt.innerHTML = wgs84.altitude.toFixed(5);
+      updateContent();
 
-      //console.log(`latitude: ${wgs84.latitude}, longitude: ${wgs84.longitude}, altitude: ${wgs84.altitude}`);
+      if (frame) {
+
+        const referenceSpace = renderer.xr.getReferenceSpace();
+        const session = renderer.xr.getSession();
+
+        if (hitTestSourceRequested === false) {
+
+          session.requestReferenceSpace('viewer').then(function (referenceSpace) {
+            session.requestHitTestSource({ space: referenceSpace }).then(function (source) {
+              hitTestSource = source;
+            });
+          });
+
+          session.addEventListener('end', function () {
+            hitTestSourceRequested = false;
+            hitTestSource = null;
+          });
+
+          hitTestSourceRequested = true;
+        }
+
+        if (hitTestSource) {
+
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+
+          if (hitTestResults.length) {
+            const hit = hitTestResults[0];
+            reticle.visible = true;
+            reticle.matrix.fromArray(hit.getPose(referenceSpace).transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
     }
 
-    updateContent();
+    // Load a .ply file from Immersal to visualize localization.
+    // Switch DOWNLOAD_SPARSE to DOWNLOAD_DENSE if you want to use the dense point cloud.
+    function loadPLY(mapId) {
+      console.log(`Loading .ply for map: [${mapId}]`);
+      const loader = new THREE.PLYLoader();
+      const url = Immersal.BASE_URL + Immersal.DOWNLOAD_SPARSE + '?token=' + immersalParams.developerToken + '&id=' + mapId;
 
-    renderer.render(scene, camera);
-  }
+      loader.load(url, function (geometry) {
+        pcgeo = geometry;
+        geometry.computeVertexNormals();
+        geometry.computeFaceNormals();
 
-  // Load a .ply file from Immersal to visualize localization.
-  // Switch DOWNLOAD_SPARSE to DOWNLOAD_DENSE if you want to use the dense point cloud.
-  function loadPLY(mapId) {
-    console.log(`Loading .ply for map: [${mapId}]`);
-    const loader = new THREE.PLYLoader();
-    const url = Immersal.BASE_URL + Immersal.DOWNLOAD_SPARSE + '?token=' + immersalParams.developerToken + '&id=' + mapId;
+        // sizes
+        let vCount = geometry.getAttribute('position').count;
+        const sizes = new Float32Array(vCount);
+        for (let i = 0; i < vCount; i++) {
+          sizes[i] = 1;
+        }
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    loader.load(url, function(geometry) {
-      pcgeo = geometry;
-      geometry.computeVertexNormals();
-      geometry.computeFaceNormals();
+        const material = new THREE.PointsMaterial({ color: 0xFFFF00, vertexColors: THREE.VertexColors, size: 4, sizeAttenuation: false });
 
-      // sizes
-      let vCount = geometry.getAttribute('position').count;
-      const sizes = new Float32Array(vCount);
-      for (let i = 0; i < vCount; i++) {
-        sizes[i] = 1;
-      }
-      geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        pointCloud = new THREE.Points(geometry, material);
+        pointCloud.scale.set(1, 1, 1);
+        scene.add(pointCloud);
+        plyLoaded = true;
+        console.log(`PLY loaded`);
+      });
+    }
 
-      const material = new THREE.PointsMaterial({ color: 0xFFFF00, vertexColors: THREE.VertexColors, size: 4, sizeAttenuation: false } );
+    function loadContent() {
+      let logoPath = './assets/immersal_LOGO.glb';
 
-      pointCloud = new THREE.Points(geometry, material);
-      pointCloud.scale.set(1, 1, 1);
-      scene.add(pointCloud);
-      plyLoaded = true;
-      console.log(`PLY loaded`);
-    });
-  }
-
-  function loadContent() {
-    let logoPath = './assets/immersal_LOGO.glb';
-
-    new THREE.RGBELoader()
-      .setPath('./assets/')
-      .load('palermo_1k.hdr', function(texture) {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        scene.environment = texture;
-        renderer.render(scene, camera);
-
-        // model
-        const gltfLoader = new THREE.GLTFLoader();
-        gltfLoader.load(logoPath, async function(gltf) {
-          logo = gltf.scene;
-
-          mixer = new THREE.AnimationMixer(gltf.scene);
-          var action = mixer.clipAction(gltf.animations[0]);
-          action.play();
-
-          scene.add(logo);
+      new THREE.RGBELoader()
+        .setPath('./assets/')
+        .load('palermo_1k.hdr', function (texture) {
+          texture.mapping = THREE.EquirectangularReflectionMapping;
+          scene.environment = texture;
           renderer.render(scene, camera);
 
-          contentLoaded = true;
-        }, undefined, function(error) {
-          console.error(error);
+          // model
+          const gltfLoader = new THREE.GLTFLoader();
+          gltfLoader.load(logoPath, async function (gltf) {
+            logo = gltf.scene;
+
+            mixer = new THREE.AnimationMixer(gltf.scene);
+            var action = mixer.clipAction(gltf.animations[0]);
+            action.play();
+
+            scene.add(logo);
+            renderer.render(scene, camera);
+
+            contentLoaded = true;
+          }, undefined, function (error) {
+            console.error(error);
+          });
         });
-      });
 
-    const ambient = new THREE.AmbientLight(0x404040); // soft white light
-    scene.add(ambient);
+      const ambient = new THREE.AmbientLight(0x404040); // soft white light
+      scene.add(ambient);
 
-    let directional = new THREE.DirectionalLight(0xffff00, 5);
-    directional.position.set(-1, 1, 0);
-    scene.add(directional);
-  }
+      let directional = new THREE.DirectionalLight(0xffff00, 5);
+      directional.position.set(-1, 1, 0);
+      scene.add(directional);
+    }
 
-  function updateContent() {
-    let dt = clock.getDelta();
-    let t = clock.getElapsedTime();
-    if (mixer) mixer.update(dt);
+    function updateContent() {
+      let dt = clock.getDelta();
+      let t = clock.getElapsedTime();
+      if (mixer) mixer.update(dt);
 
-    if (plyLoaded) {
-      const attributes = pcgeo.attributes;
+      if (plyLoaded) {
+        const attributes = pcgeo.attributes;
 
-      for (let i = 0; i < attributes.size.array.length; i ++) {
-        attributes.size.array[i] = 14 + 13 * Math.sin(0.1 * i + (t*2));
-      }
-    
-      attributes.size.needsUpdate = true;
-    }  
-  }
-
-  document.addEventListener("DOMContentLoaded", (e) => {
-    let s = location.search.substring(1);
-    let mapId = -1;
-    let token = null;
-
-    if (s.length > 0) {
-      s.split('&').forEach((item, index) => {
-        switch (index) {
-        case 0:
-          mapId = parseInt(item); break;
-        case 1:
-          token = item; break;
+        for (let i = 0; i < attributes.size.array.length; i++) {
+          attributes.size.array[i] = 14 + 13 * Math.sin(0.1 * i + (t * 2));
         }
-      });
+
+        attributes.size.needsUpdate = true;
+      }
     }
 
-    if (mapId !== -1) {
-      immersalParams.mapIds[0] = mapId;
+    document.addEventListener("DOMContentLoaded", (e) => {
+      let s = location.search.substring(1);
+      let mapId = -1;
+      let token = null;
+
+      if (s.length > 0) {
+        s.split('&').forEach((item, index) => {
+          switch (index) {
+            case 0:
+              mapId = parseInt(item); break;
+            case 1:
+              token = item; break;
+          }
+        });
+      }
+
+      if (mapId !== -1) {
+        immersalParams.mapIds[0] = mapId;
+      }
+
+      if (token !== null) {
+        immersalParams.developerToken = token;
+      }
+    });
+
+    // UI functions
+
+    function show(el, box) {
+      document.getElementById(el).style.display = (box.checked) ? "block" : "none";
     }
 
-    if (token !== null) {
-      immersalParams.developerToken = token;
+    function hide(el, box) {
+      document.getElementById(el).style.display = (box.checked) ? "none" : "none";
     }
-  });
 
-  // UI functions
+    function toggleLoc(box) {
+      immersal.continuousLocalization = box.checked;
+      locButton.style.display = (box.checked) ? "none" : "block";
+    }
 
-  function show(el, box) {
-    document.getElementById(el).style.display = (box.checked) ? "block" : "none";
-  }
-
-  function hide(el, box) {
-    document.getElementById(el).style.display = (box.checked) ? "none" : "none";
-  }
-
-  function toggleLoc(box) {
-    immersal.continuousLocalization = box.checked;
-    locButton.style.display = (box.checked) ? "none" : "block";
-  }
-
-  window.show = show;
-  window.hide = hide;
-  window.toggleLoc = toggleLoc;
-</script>
+    window.show = show;
+    window.hide = hide;
+    window.toggleLoc = toggleLoc;
+  </script>
 </body>
+
 </html>
